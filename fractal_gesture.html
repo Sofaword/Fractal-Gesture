@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>fractal gesture sketch</title>
+<style>
+  :root {
+    --bg-deep: #0a0d15;
+    --bg-panel: #11151f;
+    --ink: #d9c8a6;
+    --ink-dim: #8c7d65;
+    --ink-faint: #423a2e;
+    --amber: #f4a942;
+    --amber-soft: rgba(244,169,66,0.18);
+    --moss: #6b8e4e;
+    --steel: #5a6470;
+    --rust: #b8503a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg-deep);
+    color: var(--ink);
+    font-family: 'Courier New', monospace;
+    min-height: 100%;
+    touch-action: manipulation;
+  }
+  body {
+    padding: 16px;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  .title {
+    font-size: 14px;
+    letter-spacing: 0.25em;
+    color: var(--amber);
+    margin-bottom: 4px;
+    text-align: center;
+  }
+  .subtitle {
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: var(--ink-dim);
+    margin-bottom: 18px;
+    font-style: italic;
+    text-align: center;
+    line-height: 1.5;
+  }
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--ink-faint);
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+  .panel-label {
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: var(--amber);
+    margin-bottom: 6px;
+  }
+  .panel-sub {
+    font-size: 8px;
+    color: var(--ink-dim);
+    font-style: italic;
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
+  canvas { display: block; width: 100%; background: #060810; touch-action: none; }
+  .shape-canvas { aspect-ratio: 5 / 2; cursor: crosshair; }
+  .trace-canvas { aspect-ratio: 8 / 1; }
+  .controls {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  button {
+    flex: 1;
+    background: transparent;
+    color: var(--amber);
+    border: 1px solid var(--amber);
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    padding: 10px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  button:active { background: var(--amber-soft); }
+  button.minor { color: var(--ink-dim); border-color: var(--ink-faint); }
+  .rate-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 9px;
+    color: var(--ink-dim);
+    letter-spacing: 0.1em;
+  }
+  .rate-label { min-width: 80px; }
+  .rate-value { color: var(--amber); min-width: 60px; text-align: right; }
+  input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: var(--ink-faint);
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--amber);
+    cursor: pointer;
+    border-radius: 50%;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--amber);
+    cursor: pointer;
+    border-radius: 50%;
+    border: none;
+  }
+  .legend {
+    display: flex;
+    gap: 12px;
+    font-size: 8px;
+    color: var(--ink-dim);
+    margin-top: 4px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .legend-swatch {
+    width: 10px;
+    height: 2px;
+  }
+</style>
+</head>
+<body>
+
+<div class="title">FRACTAL GESTURE</div>
+<div class="subtitle">one shape · four rates · same gesture from audio to phrase</div>
+
+<div class="panel">
+  <div class="panel-label">THE GESTURE</div>
+  <div class="panel-sub">Drag points to shape the gesture. This single curve drives everything below.</div>
+  <canvas id="shapeCanvas" class="shape-canvas"></canvas>
+</div>
+
+<div class="panel">
+  <div class="panel-label">APPLIED AT FOUR RATES</div>
+  <div class="panel-sub">Each trace below shows the same gesture cycling at a different time rate. Top is fast (audio); bottom is slow (phrase). The gesture shape is identical at every scale.</div>
+
+  <div style="margin-top: 8px;">
+    <div style="font-size:8px;color:var(--amber);letter-spacing:0.12em;margin-bottom:2px;">CARRIER · audio rate (~80 Hz)</div>
+    <canvas id="trace0" class="trace-canvas"></canvas>
+  </div>
+
+  <div style="margin-top: 8px;">
+    <div style="font-size:8px;color:var(--moss);letter-spacing:0.12em;margin-bottom:2px;">MODULATOR · LFO rate (~5 Hz)</div>
+    <canvas id="trace1" class="trace-canvas"></canvas>
+  </div>
+
+  <div style="margin-top: 8px;">
+    <div style="font-size:8px;color:var(--steel);letter-spacing:0.12em;margin-bottom:2px;">ENVELOPE · note rate (~1 Hz)</div>
+    <canvas id="trace2" class="trace-canvas"></canvas>
+  </div>
+
+  <div style="margin-top: 8px;">
+    <div style="font-size:8px;color:var(--rust);letter-spacing:0.12em;margin-bottom:2px;">PHRASE · slow rate (~0.15 Hz)</div>
+    <canvas id="trace3" class="trace-canvas"></canvas>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-label">RATES</div>
+  <div class="rate-row">
+    <span class="rate-label">CARRIER</span>
+    <input type="range" id="rate0" min="40" max="200" step="1" value="80">
+    <span class="rate-value" id="rate0Val">80 Hz</span>
+  </div>
+  <div class="rate-row">
+    <span class="rate-label">MODULATOR</span>
+    <input type="range" id="rate1" min="0.5" max="20" step="0.1" value="5">
+    <span class="rate-value" id="rate1Val">5.0 Hz</span>
+  </div>
+  <div class="rate-row">
+    <span class="rate-label">ENVELOPE</span>
+    <input type="range" id="rate2" min="0.3" max="3" step="0.05" value="1">
+    <span class="rate-value" id="rate2Val">1.0 Hz</span>
+  </div>
+  <div class="rate-row">
+    <span class="rate-label">PHRASE</span>
+    <input type="range" id="rate3" min="0.05" max="0.5" step="0.01" value="0.15">
+    <span class="rate-value" id="rate3Val">0.15 Hz</span>
+  </div>
+</div>
+
+<div class="controls">
+  <button id="playBtn">PLAY</button>
+  <button id="resetBtn" class="minor">RESET SHAPE</button>
+</div>
+
+<div class="panel" style="margin-top: 10px;">
+  <div class="panel-sub" style="margin-bottom: 0;">
+    The carrier's waveform IS the gesture, played 80 times per second.
+    The modulator's amplitude curve IS the gesture, played 5 times per second.
+    The envelope IS the gesture, played once per note.
+    The phrase contour IS the gesture, played slowly across phrases.
+    Edit the shape — all four scales change in lockstep, because they are one shape.
+  </div>
+</div>
+
+<script>
+(function(){
+  // ===== Shape model =====
+  // The gesture is N control points y-values across [0, 1] in time.
+  // We store the shape as an array of normalized values in [-1, 1].
+  // Time wraps — point N == point 0.
+  const N_POINTS = 16;
+  // Default: a "swell and release" shape — rises, peaks, falls past zero, recovers.
+  function defaultShape() {
+    const arr = new Float32Array(N_POINTS);
+    for (let i = 0; i < N_POINTS; i++) {
+      const t = i / N_POINTS;
+      // Slow swell up, sharp release down
+      if (t < 0.6) arr[i] = Math.sin(t * Math.PI / 0.6) * 0.85;
+      else arr[i] = Math.sin((t - 0.6) / 0.4 * Math.PI + Math.PI) * 0.5;
+    }
+    return arr;
+  }
+  let shape = defaultShape();
+
+  // Sample the shape at any normalized phase [0, 1) with linear interpolation
+  function sampleShape(phase) {
+    phase = phase - Math.floor(phase); // wrap to [0, 1)
+    const f = phase * N_POINTS;
+    const i0 = Math.floor(f) % N_POINTS;
+    const i1 = (i0 + 1) % N_POINTS;
+    const frac = f - Math.floor(f);
+    return shape[i0] * (1 - frac) + shape[i1] * frac;
+  }
+
+  // ===== Shape editor =====
+  const shapeCvs = document.getElementById('shapeCanvas');
+  const shapeCtx = shapeCvs.getContext('2d');
+  function resizeShapeCvs() {
+    const r = shapeCvs.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    shapeCvs.width = r.width * dpr;
+    shapeCvs.height = r.height * dpr;
+    shapeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    shapeCvs._w = r.width;
+    shapeCvs._h = r.height;
+  }
+  resizeShapeCvs();
+  window.addEventListener('resize', () => {
+    resizeShapeCvs();
+    for (let i = 0; i < 4; i++) resizeTraceCvs(i);
+  });
+
+  function drawShape() {
+    const w = shapeCvs._w, h = shapeCvs._h;
+    shapeCtx.clearRect(0, 0, w, h);
+    // Grid
+    shapeCtx.strokeStyle = 'rgba(120,100,70,0.18)';
+    shapeCtx.lineWidth = 1;
+    shapeCtx.beginPath();
+    shapeCtx.moveTo(0, h / 2); shapeCtx.lineTo(w, h / 2);
+    shapeCtx.stroke();
+    // Curve
+    shapeCtx.strokeStyle = '#f4a942';
+    shapeCtx.lineWidth = 2;
+    shapeCtx.beginPath();
+    const samples = 200;
+    for (let i = 0; i <= samples; i++) {
+      const phase = i / samples;
+      const v = sampleShape(phase);
+      const x = phase * w;
+      const y = h / 2 - v * h * 0.42;
+      if (i === 0) shapeCtx.moveTo(x, y);
+      else shapeCtx.lineTo(x, y);
+    }
+    shapeCtx.stroke();
+    // Control points
+    for (let i = 0; i < N_POINTS; i++) {
+      const x = (i / N_POINTS) * w;
+      const y = h / 2 - shape[i] * h * 0.42;
+      shapeCtx.fillStyle = '#f4a942';
+      shapeCtx.beginPath();
+      shapeCtx.arc(x, y, 4, 0, Math.PI * 2);
+      shapeCtx.fill();
+    }
+  }
+  drawShape();
+
+  // Drag editing
+  let dragIdx = -1;
+  function pointerToShape(e) {
+    const r = shapeCvs.getBoundingClientRect();
+    const x = (e.clientX || (e.touches && e.touches[0].clientX)) - r.left;
+    const y = (e.clientY || (e.touches && e.touches[0].clientY)) - r.top;
+    const i = Math.round((x / r.width) * N_POINTS) % N_POINTS;
+    const v = Math.max(-1, Math.min(1, -((y - r.height / 2) / (r.height * 0.42))));
+    return { i, v };
+  }
+  shapeCvs.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    shapeCvs.setPointerCapture(e.pointerId);
+    const { i, v } = pointerToShape(e);
+    dragIdx = i;
+    shape[i] = v;
+    drawShape();
+  });
+  shapeCvs.addEventListener('pointermove', (e) => {
+    if (dragIdx < 0) return;
+    e.preventDefault();
+    const { i, v } = pointerToShape(e);
+    // Allow dragging through adjacent points
+    if (i !== dragIdx) {
+      // Interpolate from last point through current
+      const lo = Math.min(dragIdx, i), hi = Math.max(dragIdx, i);
+      for (let k = lo; k <= hi; k++) shape[k] = v;
+      dragIdx = i;
+    } else {
+      shape[i] = v;
+    }
+    drawShape();
+  });
+  shapeCvs.addEventListener('pointerup', () => { dragIdx = -1; });
+  shapeCvs.addEventListener('pointercancel', () => { dragIdx = -1; });
+
+  // ===== Trace canvases =====
+  const traceCanvases = [];
+  const traceCtxs = [];
+  const traceColors = ['#f4a942', '#6b8e4e', '#5a6470', '#b8503a'];
+  for (let i = 0; i < 4; i++) {
+    const c = document.getElementById('trace' + i);
+    traceCanvases.push(c);
+    traceCtxs.push(c.getContext('2d'));
+    resizeTraceCvs(i);
+  }
+  function resizeTraceCvs(i) {
+    const c = traceCanvases[i];
+    const r = c.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    c.width = r.width * dpr;
+    c.height = r.height * dpr;
+    traceCtxs[i].setTransform(dpr, 0, 0, dpr, 0, 0);
+    c._w = r.width;
+    c._h = r.height;
+  }
+
+  // Each trace shows the gesture cycling at its rate. We render
+  // by sampling shape at phases that correspond to "what would the
+  // gesture be at this moment if it were cycling at this Hz?"
+  // The visible window for each trace shows about 2 cycles of that rate.
+  function drawTrace(idx, rateHz, color, tNow) {
+    const c = traceCanvases[idx];
+    const ctx = traceCtxs[idx];
+    const w = c._w, h = c._h;
+    ctx.clearRect(0, 0, w, h);
+    // Center line
+    ctx.strokeStyle = 'rgba(120,100,70,0.18)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
+
+    // Time window for this trace: 2 cycles wide
+    const windowSec = 2 / rateHz;
+    // Sample many points across the window, all rendered relative to tNow
+    // (the right edge of the trace is "now")
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    const samples = Math.max(120, Math.round(w));
+    for (let s = 0; s <= samples; s++) {
+      const dt = -(1 - s / samples) * windowSec; // from -windowSec at left to 0 at right
+      const t = tNow + dt;
+      const phase = t * rateHz;
+      const v = sampleShape(phase);
+      const x = (s / samples) * w;
+      const y = h / 2 - v * h * 0.42;
+      if (s === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Playhead at right edge
+    ctx.fillStyle = color;
+    const nowPhase = tNow * rateHz;
+    const nowV = sampleShape(nowPhase);
+    ctx.beginPath();
+    ctx.arc(w - 2, h / 2 - nowV * h * 0.42, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ===== State =====
+  const state = {
+    rates: [80, 5, 1, 0.15],
+    playing: false,
+    playStartTime: 0, // seconds (audioCtx time)
+  };
+
+  // ===== Audio =====
+  let audioCtx = null;
+  let audioGraph = null;
+  function ensureAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function buildAudio() {
+    ensureAudio();
+    const ctx = audioCtx;
+    // We use an AudioWorklet-style approach via ScriptProcessor for compatibility.
+    // The gesture shape drives:
+    //  - the carrier's waveform (audio rate via custom periodicWave)
+    //  - the modulator's amplitude shape (LFO rate)
+    //  - the envelope's overall shape (note rate)
+    //  - a phrase contour that modulates output gain very slowly
+    //
+    // Periodic wave from shape: we compute a Fourier-style PeriodicWave whose
+    // single-period shape matches `shape`. This makes the carrier literally
+    // play the gesture as its waveform at audio rate.
+
+    // FFT-style: sample the shape densely and compute DFT to get real/imag.
+    const NS = 1024;
+    const samples = new Float32Array(NS);
+    for (let i = 0; i < NS; i++) samples[i] = sampleShape(i / NS);
+    // DFT to get coefficients
+    const NHARM = 32;
+    const real = new Float32Array(NHARM + 1);
+    const imag = new Float32Array(NHARM + 1);
+    // DC = 0 (browser requirement: real[0] = 0)
+    for (let k = 1; k <= NHARM; k++) {
+      let re = 0, im = 0;
+      for (let n = 0; n < NS; n++) {
+        const theta = 2 * Math.PI * k * n / NS;
+        re += samples[n] * Math.cos(theta);
+        im -= samples[n] * Math.sin(theta);
+      }
+      real[k] = re / NS * 2;
+      imag[k] = im / NS * 2;
+    }
+    const periodicWave = ctx.createPeriodicWave(real, imag, { disableNormalization: false });
+
+    // Carrier — plays the gesture as its waveform
+    const carrier = ctx.createOscillator();
+    carrier.setPeriodicWave(periodicWave);
+    carrier.frequency.value = state.rates[0];
+
+    // Modulator — drives the carrier's amplitude using the gesture at LFO rate.
+    // We can't use a custom-wave LFO that easily drives a gain, but we can
+    // generate the modulator signal via another oscillator with the same
+    // periodicWave at LFO rate.
+    const modulator = ctx.createOscillator();
+    modulator.setPeriodicWave(periodicWave);
+    modulator.frequency.value = state.rates[1];
+
+    const modGain = ctx.createGain();
+    modGain.gain.value = 0.5; // modulation depth on amp
+
+    const modBias = ctx.createConstantSource();
+    modBias.offset.value = 0.5; // bias the amp around 0.5 so modulation adds/subtracts
+
+    const ampGain = ctx.createGain();
+    ampGain.gain.value = 0;
+
+    // Wire: modulator * modGain -> ampGain.gain; modBias -> ampGain.gain.
+    // amp.gain = modBias + modulator * modGain
+    modulator.connect(modGain);
+    modGain.connect(ampGain.gain);
+    modBias.connect(ampGain.gain);
+
+    // Envelope — gesture at note rate, drives a slower gain
+    const envOsc = ctx.createOscillator();
+    envOsc.setPeriodicWave(periodicWave);
+    envOsc.frequency.value = state.rates[2];
+
+    const envGain = ctx.createGain();
+    envGain.gain.value = 0.3;
+    const envBias = ctx.createConstantSource();
+    envBias.offset.value = 0.4;
+    const envApply = ctx.createGain();
+    envApply.gain.value = 0;
+    envOsc.connect(envGain);
+    envGain.connect(envApply.gain);
+    envBias.connect(envApply.gain);
+
+    // Phrase — gesture at phrase rate, drives a very slow gain
+    const phrOsc = ctx.createOscillator();
+    phrOsc.setPeriodicWave(periodicWave);
+    phrOsc.frequency.value = state.rates[3];
+
+    const phrGain = ctx.createGain();
+    phrGain.gain.value = 0.4;
+    const phrBias = ctx.createConstantSource();
+    phrBias.offset.value = 0.6;
+    const phrApply = ctx.createGain();
+    phrApply.gain.value = 0;
+    phrOsc.connect(phrGain);
+    phrGain.connect(phrApply.gain);
+    phrBias.connect(phrApply.gain);
+
+    // Output limiter so things don't clip
+    const master = ctx.createGain();
+    master.gain.value = 0.15;
+
+    // Signal chain: carrier -> ampGain (modulator) -> envApply (envelope) -> phrApply (phrase) -> master -> destination
+    carrier.connect(ampGain);
+    ampGain.connect(envApply);
+    envApply.connect(phrApply);
+    phrApply.connect(master);
+    master.connect(ctx.destination);
+
+    // Start everything
+    const t = ctx.currentTime + 0.05;
+    carrier.start(t);
+    modulator.start(t);
+    modBias.start(t);
+    envOsc.start(t);
+    envBias.start(t);
+    phrOsc.start(t);
+    phrBias.start(t);
+
+    state.playStartTime = t;
+    state.playing = true;
+
+    audioGraph = {
+      carrier, modulator, envOsc, phrOsc,
+      modBias, envBias, phrBias,
+      modGain, envGain, phrGain,
+      ampGain, envApply, phrApply, master,
+    };
+  }
+
+  function stopAudio() {
+    if (!audioGraph) return;
+    const t = audioCtx.currentTime;
+    try {
+      audioGraph.master.gain.cancelScheduledValues(t);
+      audioGraph.master.gain.setValueAtTime(audioGraph.master.gain.value, t);
+      audioGraph.master.gain.linearRampToValueAtTime(0, t + 0.05);
+      setTimeout(() => {
+        try {
+          audioGraph.carrier.stop();
+          audioGraph.modulator.stop();
+          audioGraph.envOsc.stop();
+          audioGraph.phrOsc.stop();
+          audioGraph.modBias.stop();
+          audioGraph.envBias.stop();
+          audioGraph.phrBias.stop();
+        } catch (e) {}
+        audioGraph = null;
+      }, 80);
+    } catch (e) { audioGraph = null; }
+    state.playing = false;
+  }
+
+  // ===== Animation loop =====
+  function frame() {
+    // tNow used by traces — driven by audioCtx clock when playing, else perf.now
+    let tNow;
+    if (audioCtx && state.playing) tNow = audioCtx.currentTime;
+    else tNow = performance.now() / 1000;
+    for (let i = 0; i < 4; i++) {
+      drawTrace(i, state.rates[i], traceColors[i], tNow);
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ===== Controls =====
+  for (let i = 0; i < 4; i++) {
+    const input = document.getElementById('rate' + i);
+    const val = document.getElementById('rate' + i + 'Val');
+    input.addEventListener('input', () => {
+      state.rates[i] = +input.value;
+      val.textContent = (+input.value).toFixed(state.rates[i] < 10 ? (state.rates[i] < 1 ? 2 : 1) : 0) + ' Hz';
+      // Live update audio if playing
+      if (audioGraph) {
+        const targets = [
+          audioGraph.carrier.frequency,
+          audioGraph.modulator.frequency,
+          audioGraph.envOsc.frequency,
+          audioGraph.phrOsc.frequency,
+        ];
+        targets[i].setValueAtTime(state.rates[i], audioCtx.currentTime);
+      }
+    });
+  }
+
+  document.getElementById('playBtn').addEventListener('click', () => {
+    if (state.playing) {
+      stopAudio();
+      document.getElementById('playBtn').textContent = 'PLAY';
+    } else {
+      buildAudio();
+      document.getElementById('playBtn').textContent = 'STOP';
+    }
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    shape = defaultShape();
+    drawShape();
+    if (state.playing) {
+      // Rebuild audio with new shape
+      stopAudio();
+      setTimeout(() => {
+        buildAudio();
+      }, 120);
+    }
+  });
+
+  // When shape changes during play, rebuild audio so the new shape applies
+  let rebuildPending = false;
+  function shapeChanged() {
+    if (!state.playing) return;
+    if (rebuildPending) return;
+    rebuildPending = true;
+    setTimeout(() => {
+      stopAudio();
+      setTimeout(() => {
+        buildAudio();
+        rebuildPending = false;
+      }, 100);
+    }, 200); // debounce so dragging doesn't constantly rebuild
+  }
+  shapeCvs.addEventListener('pointerup', shapeChanged);
+
+})();
+</script>
+</body>
+</html>
